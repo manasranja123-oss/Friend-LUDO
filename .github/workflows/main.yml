@@ -1,0 +1,49 @@
+
+name: Friend Ludo Android Build
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Extract project ZIP
+        run: |
+          mkdir -p project
+          unzip -o Friend-Ludo-Project.zip -d project
+
+      - name: Check project files
+        run: |
+          echo "Files found in uploaded project:"
+          find project -maxdepth 4 -type f | head -200
+          if ! find project -name gradlew -type f | grep -q .; then
+            echo "::error::Android Gradle project not found. Check the ZIP contents."
+            exit 1
+          fi
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Build Android APK
+        run: |
+          cd "$(dirname "$(find project -name gradlew -type f | head -1)")"
+          chmod +x gradlew
+          ./gradlew assembleDebug
+
+      - name: Upload APK
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Friend-Ludo-APK
+          path: project/**/build/outputs/apk/debug/*.apk
