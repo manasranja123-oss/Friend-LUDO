@@ -15,19 +15,22 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Extract project ZIP
+      - name: Extract Android project
         run: |
           mkdir -p project
-          unzip -o Friend-Ludo-Project.zip -d project
+          unzip -o Friend-Ludo-Android-Project.zip -d project
+          echo "Project files:"
+          find project -maxdepth 5 -type f | head -200
 
-      - name: Check project files
+      - name: Locate Android project
         run: |
-          echo "Files found in uploaded project:"
-          find project -maxdepth 4 -type f | head -200
-          if ! find project -name gradlew -type f | grep -q .; then
-            echo "::error::Android Gradle project not found. Check the ZIP contents."
+          PROJECT_DIR=$(find project -name settings.gradle.kts -printf '%h\n' | head -1)
+          if [ -z "$PROJECT_DIR" ]; then
+            echo "::error::settings.gradle.kts not found"
             exit 1
           fi
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+          test -f "$PROJECT_DIR/app/build.gradle.kts"
 
       - name: Set up Java
         uses: actions/setup-java@v4
@@ -35,15 +38,18 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
       - name: Build Android APK
-        run: |
-          cd "$(dirname "$(find project -name gradlew -type f | head -1)")"
-          chmod +x gradlew
-          ./gradlew assembleDebug
+        run: gradle -p "$PROJECT_DIR" assembleDebug
 
       - name: Upload APK
         if: success()
         uses: actions/upload-artifact@v4
         with:
           name: Friend-Ludo-APK
-          path: project/**/build/outputs/apk/debug/*.apk
+          path: ${{ env.PROJECT_DIR }}/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
